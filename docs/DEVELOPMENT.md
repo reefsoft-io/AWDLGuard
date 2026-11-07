@@ -52,8 +52,8 @@ Each connected app session asks for `awdl0` to be held down or not, and the requ
 until the session ends. `awdl0` stays down while any session asks for it, so a second user,
 or a second copy of the app, can't release it under the other. A session that allows AWDL
 while another holds it shows "Kept off for another user". When the last session ends, or
-launchd stops the helper with SIGTERM (unregistering, turning it off under Allow in the
-Background, shutdown), the helper restores `awdl0` and exits. It never runs unseen.
+launchd stops the helper with SIGTERM (unregistering, turning it off under Background
+App Activity, shutdown), the helper restores `awdl0` and exits. It never runs unseen.
 Everything in the helper runs on one serial queue.
 
 The file `/var/run/io.reefsoft.AWDLGuard.Helper.suppressing` is the one record that the
@@ -91,7 +91,7 @@ The connection is driven by events, with no heartbeat:
 waits for approval the app rereads the registration every 2 seconds, and whenever the menu
 opens.
 
-Turning AWDL Guard off under Allow in the Background makes macOS stop the helper and also
+Turning AWDL Guard off under Background App Activity makes macOS stop the helper and also
 force quit the app (`forceQuitAppWithURL` in Background Task Management). The helper
 restores `awdl0` on its SIGTERM either way. macOS waits for the app's child processes
 first, such as the Open panel service left by Add App, so the quit can come more than a

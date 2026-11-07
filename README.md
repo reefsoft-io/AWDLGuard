@@ -26,7 +26,7 @@ work. They come back as soon as AWDL does.
 1. Download the latest zip from [Releases](https://github.com/reefsoft-io/AWDLGuard/releases/latest),
    open it and move **AWDL Guard** to Applications.
 2. Open AWDL Guard, open its menu and choose **Install…**.
-3. In System Settings, turn on AWDL Guard under **Allow in the Background**.
+3. In System Settings, turn on AWDL Guard under **Background App Activity**.
 
 AWDL Guard needs macOS 26 or later. It installs a small helper, because only the
 system can turn AWDL off.
