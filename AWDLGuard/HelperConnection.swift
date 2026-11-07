@@ -34,6 +34,8 @@ final class HelperConnection {
     @ObservationIgnored private var retry: Task<Void, Never>?
     @ObservationIgnored private var retryDelay = firstRetryDelay
     @ObservationIgnored private var approvalWatch: Task<Void, Never>?
+    /// The registration status last written to the log; only for logging.
+    @ObservationIgnored private var loggedStatus: SMAppService.Status?
     @ObservationIgnored private let log = Logger(subsystem: "io.reefsoft.AWDLGuard", category: "helper")
 
     /// A request unanswered for this long, not counting sleep, means the helper isn't
@@ -57,7 +59,13 @@ final class HelperConnection {
     /// worked ends, on each retry, and every 2 seconds while waiting for approval.
     func refresh() {
         guard state != .repairing else { return }
-        switch service.status {
+        let status = service.status
+        // Logged on change, so the logs show what macOS reported when the state seems wrong.
+        if status != loggedStatus {
+            log.notice("Helper registration status: \(Self.name(status), privacy: .public)")
+            loggedStatus = status
+        }
+        switch status {
         case .enabled:
             stopWatchingApproval()
             if session == nil { connect() }
@@ -71,6 +79,16 @@ final class HelperConnection {
             // Keep the reason a failed install gave until the next attempt.
             if case .installFailed = state { return }
             state = .notInstalled
+        }
+    }
+
+    private static func name(_ status: SMAppService.Status) -> String {
+        switch status {
+        case .notRegistered: "not registered"
+        case .enabled: "enabled"
+        case .requiresApproval: "requires approval"
+        case .notFound: "not found"
+        @unknown default: "unknown (\(status.rawValue))"
         }
     }
 

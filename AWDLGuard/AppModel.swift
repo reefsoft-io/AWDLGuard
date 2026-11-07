@@ -34,8 +34,10 @@ final class AppModel {
     /// notifications, for listing the rules of open apps first.
     private var runningTargets: [pid_t: AppTarget] = [:]
     private(set) var isOnWiFi = false
-    /// Whether AWDL Guard opens at login, as the system last reported it.
-    private(set) var loginItem: LoginItemState
+    /// Whether AWDL Guard opens at login, as the system last reported it. It counts as on
+    /// while it waits for approval: the setting is on, and the helper's status asks for
+    /// the approval both need.
+    private(set) var opensAtLogin: Bool
     /// What the system knows about each rule's app, for its row in App Rules. Looked up in
     /// the background, so rows never query the system while drawing.
     private(set) var ruleDetails: [AppTarget: RuleDetails] = [:]
@@ -67,7 +69,7 @@ final class AppModel {
         mode = defaults.string(forKey: Keys.mode).flatMap(Mode.init(rawValue:)) ?? .automatic
         rules = []
         isMenuBarItemHidden = defaults.bool(forKey: Keys.isMenuBarItemHidden)
-        loginItem = LoginItemState(SMAppService.mainApp.status)
+        opensAtLogin = Self.readOpensAtLogin()
         helper = HelperConnection(appIdentifier: Bundle.main.bundleIdentifier ?? "io.reefsoft.AWDLGuard")
         helper.wantsSuppression = { [unowned self] in decision.isSuppressed }
 
@@ -81,7 +83,7 @@ final class AppModel {
     /// Rereads what the user may have changed in System Settings. Called when the menu opens.
     func refreshSystemState() {
         helper.refresh()
-        loginItem = LoginItemState(SMAppService.mainApp.status)
+        opensAtLogin = Self.readOpensAtLogin()
     }
 
     // MARK: Rules
@@ -160,14 +162,21 @@ final class AppModel {
     // MARK: Login item
 
     /// Registers or unregisters AWDL Guard as a login item, then rereads what the system
-    /// reports, which may be that it needs approval.
+    /// reports.
     func setOpensAtLogin(_ isOn: Bool) {
         do {
             if isOn { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
             log.error("Couldn't change login item: \(error, privacy: .public)")
         }
-        loginItem = LoginItemState(SMAppService.mainApp.status)
+        opensAtLogin = Self.readOpensAtLogin()
+    }
+
+    private static func readOpensAtLogin() -> Bool {
+        switch SMAppService.mainApp.status {
+        case .enabled, .requiresApproval: true
+        default: false
+        }
     }
 
     // MARK: Inputs
@@ -255,22 +264,6 @@ final class AppModel {
 struct Foreground {
     let running: NSRunningApplication
     let app: ForegroundApp
-}
-
-/// Whether AWDL Guard opens at login.
-enum LoginItemState {
-    case off
-    case on
-    /// Registered, but turned off under Open at Login in System Settings.
-    case needsApproval
-
-    init(_ status: SMAppService.Status) {
-        switch status {
-        case .enabled: self = .on
-        case .requiresApproval: self = .needsApproval
-        default: self = .off
-        }
-    }
 }
 
 /// Why a chosen file can't become a rule.

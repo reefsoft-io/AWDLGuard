@@ -1,7 +1,6 @@
 import AppKit
 import GuardPolicy
 import HelperInterface
-import ServiceManagement
 import SwiftUI
 
 /// The menu bar window: the current state and its controls, the app settings, and the
@@ -35,7 +34,7 @@ struct MenuPanel: View {
             }
 
             // A setting, so it's a row with its state always visible, like the app above.
-            LoginItemRow(state: model.loginItem, setOpensAtLogin: model.setOpensAtLogin)
+            LoginItemRow(opensAtLogin: model.opensAtLogin, setOpensAtLogin: model.setOpensAtLogin)
 
             Divider().padding(.horizontal, -4)
 
@@ -70,36 +69,19 @@ struct MenuPanel: View {
     }
 }
 
-/// Open at Login, with the state the system reports. When it's on but turned off in
-/// System Settings, the row says where to allow it and offers the way there.
+/// Open at Login, as the system reports it. Approval isn't asked for here: the switch
+/// under Background App Activity that blocks it also blocks the helper, and the status
+/// card asks for that.
 struct LoginItemRow: View {
-    let state: LoginItemState
+    let opensAtLogin: Bool
     let setOpensAtLogin: @MainActor @Sendable (Bool) -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            Toggle(isOn: Binding(get: { state != .off }, set: setOpensAtLogin)) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Open at Login")
-                    if state == .needsApproval {
-                        Text("Allow under Open at Login")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            if state == .needsApproval {
-                Button {
-                    SMAppService.openSystemSettingsLoginItems()
-                } label: {
-                    Text("Open Settings…").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(AccentButtonStyle(isCompact: true))
-            }
+        Toggle(isOn: Binding(get: { opensAtLogin }, set: setOpensAtLogin)) {
+            Text("Open at Login").frame(maxWidth: .infinity, alignment: .leading)
         }
+        .toggleStyle(.switch)
+        .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Theme.cardFill, in: .rect(cornerRadius: Theme.cardRadius))

@@ -56,7 +56,7 @@ public struct Status: Equatable, Sendable {
         case .installFailed(let message):
             self.init(tone: .problem, title: "Couldn't Install Helper", detail: message, remedy: .install)
         case .needsApproval:
-            self.init(tone: .problem, title: "Approval Required", detail: "Allow in the Background", remedy: .approve)
+            self.init(tone: .problem, title: "Approval Required", detail: "Turn on background activity", remedy: .approve)
         case .connecting:
             self.init(tone: .pending, title: "Connecting…", detail: decision.explanation)
         case .notResponding:

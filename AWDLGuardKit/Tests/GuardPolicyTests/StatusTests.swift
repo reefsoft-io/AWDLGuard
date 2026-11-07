@@ -75,7 +75,7 @@ private let allow = Decision(reason: .noTrigger)
         let cases: [(Decision, HelperState, Status.Tone, String, String)] = [
             (suppress, .notInstalled, .problem, "Helper Required", "Needed to control AWDL"),
             (suppress, .installFailed("Denied"), .problem, "Couldn't Install Helper", "Denied"),
-            (suppress, .needsApproval, .problem, "Approval Required", "Allow in the Background"),
+            (suppress, .needsApproval, .problem, "Approval Required", "Turn on background activity"),
             (suppress, .connecting, .pending, "Connecting…", "GeForce NOW in foreground"),
             (suppress, .notResponding, .problem, "Helper Not Responding", "Repair to restart it"),
             (suppress, connected(false, up: true), .pending, "Turning Off…", "GeForce NOW in foreground"),
@@ -142,7 +142,7 @@ private let allow = Decision(reason: .noTrigger)
         #expect(Status(decision: suppress, helper: .needsApproval).remedy == .approve)
         // Names the System Settings section, not just the Login Items page, which also lists
         // Open at Login.
-        #expect(Status(decision: suppress, helper: .needsApproval).detail == "Allow in the Background")
+        #expect(Status(decision: suppress, helper: .needsApproval).detail == "Turn on background activity")
         #expect(Status(decision: suppress, helper: .notResponding).remedy == .repair)
         #expect(Status(decision: suppress, helper: .repairing).remedy == nil)
         #expect(Status(decision: suppress, helper: .connecting).remedy == nil)
