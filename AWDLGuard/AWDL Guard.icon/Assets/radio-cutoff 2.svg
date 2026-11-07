@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="912" height="858" viewBox="168 184 912 858" fill="none">
+  <title>AWDL Control radio cut-off</title>
+  <desc>A segmented diagonal aerial attached to an ivory toggle outline, with its thumb on the left. Pair with radio-cutoff-minus.svg for the green off mark. Transparent background.</desc>
+  <g id="aerial" fill="#FFF3DA">
+    <path d="M518 482 701 359Q710 352 717 362L731 382Q738 393 727 401L570 514Q557 481 518 482Z"/>
+    <path d="M722 356 808 298Q816 293 821 301L827 311Q832 319 824 325L740 385Q735 368 722 356Z"/>
+    <path d="M827 296 900 244 910 256 834 310Z"/>
+    <circle cx="925" cy="238" r="30"/>
+    <path d="M454 548V532C454 508 472 490 496 490H520C545 490 564 509 564 534V548Z"/>
+  </g>
+  <path id="switch-outline" fill="#FFF3DA" fill-rule="evenodd" d="M428 547H820C950 547 1055 652 1055 782S950 1017 820 1017H428C298 1017 193 912 193 782S298 547 428 547ZM428 620C338 620 266 692 266 782S338 945 428 945H820C910 945 982 872 982 782S910 620 820 620Z"/>
+  <circle id="switch-thumb" cx="429" cy="782" r="137" fill="#FFF3DA"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="912" height="858" viewBox="168 184 912 858" fill="none">
+  <title>AWDL Control green off mark</title>
+  <desc>A minus in the app's green accent, positioned to align with radio-cutoff.svg when both layers share the same size and position. Transparent background.</desc>
+  <rect id="off-mark" x="775" y="754" width="170" height="55" rx="27.5" fill="#76B900"/>
+</svg>
