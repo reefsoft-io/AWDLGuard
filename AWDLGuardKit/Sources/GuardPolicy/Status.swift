@@ -1,8 +1,11 @@
+import Darwin
 import HelperInterface
 
 /// The app's view of the privileged helper.
 public enum HelperState: Equatable, Sendable {
     case notInstalled
+    /// Registering the helper with launchd failed, with the system's message.
+    case installFailed(String)
     /// Registered, but the user hasn't allowed it in System Settings yet.
     case needsApproval
     case connecting
@@ -50,6 +53,8 @@ public struct Status: Equatable, Sendable {
         switch helper {
         case .notInstalled:
             self.init(tone: .problem, title: "Helper Required", detail: "Needed to control AWDL", remedy: .install)
+        case .installFailed(let message):
+            self.init(tone: .problem, title: "Couldn't Install Helper", detail: message, remedy: .install)
         case .needsApproval:
             self.init(tone: .problem, title: "Approval Required", detail: "Allow in the Background", remedy: .approve)
         case .connecting:
@@ -68,13 +73,13 @@ public struct Status: Equatable, Sendable {
     private static func suppressing(_ observation: InterfaceObservation, decision: Decision) -> Status {
         // The helper refuses to suppress when it can't record that it did.
         if let failure = observation.failure, failure.operation == .recordState {
-            return Status(tone: .problem, title: "Couldn't Turn Off", detail: failure.description)
+            return Status(tone: .problem, title: "Couldn't Turn Off", detail: describe(failure))
         }
         if !observation.isSuppressing {
             return Status(tone: .pending, title: "Turning Off…", detail: decision.explanation)
         }
         if let failure = observation.failure {
-            return Status(tone: .problem, title: "Couldn't Turn Off", detail: failure.description)
+            return Status(tone: .problem, title: "Couldn't Turn Off", detail: describe(failure))
         }
         switch observation.isInterfaceUp {
         case false? where !observation.isWatching:
@@ -109,7 +114,7 @@ public struct Status: Equatable, Sendable {
         // A failure to record suppression only concerns turning AWDL off, and the helper
         // clears it with the next request.
         if let failure = observation.failure, failure.operation != .recordState {
-            return Status(tone: .problem, title: "Couldn't Turn On", detail: failure.description)
+            return Status(tone: .problem, title: "Couldn't Turn On", detail: describe(failure))
         }
         // macOS turns AWDL off by itself at times, for example with Wi-Fi off, so off while
         // allowed is information, not a fault.
@@ -117,5 +122,19 @@ public struct Status: Equatable, Sendable {
             return Status(tone: .allowed, title: "AWDL Off", detail: "Turned off by macOS")
         }
         return Status(tone: .allowed, title: "AWDL On", detail: decision.explanation)
+    }
+
+    /// A failed system call as the user reads it, for example "Operation not permitted
+    /// while turning AWDL off (error 1)".
+    private static func describe(_ failure: InterfaceFailure) -> String {
+        let action =
+            switch failure.operation {
+            case .readFlags: "checking AWDL"
+            case .bringDown: "turning AWDL off"
+            case .bringUp: "turning AWDL on"
+            case .watchChanges: "watching AWDL"
+            case .recordState: "saving AWDL state"
+            }
+        return "\(String(cString: strerror(failure.code))) while \(action) (error \(failure.code))"
     }
 }

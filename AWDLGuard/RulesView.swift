@@ -23,6 +23,8 @@ struct RulesList: View {
                 .buttonStyle(AccentButtonStyle())
             }
         } else {
+            let order = model.rules.displayOrder(running: model.running)
+            let foregroundTarget = model.foreground.flatMap { AppTarget($0.app) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     RulesLegend()
@@ -30,7 +32,8 @@ struct RulesList: View {
                     ForEach(order) { rule in
                         RuleRow(
                             rule: binding(for: rule),
-                            isInForeground: model.foreground.map { rule.target.matches($0.app) } == true
+                            details: model.ruleDetails[rule.target],
+                            isInForeground: rule.target == foregroundTarget
                         ) {
                             model.removeRule(rule)
                         }
@@ -42,8 +45,6 @@ struct RulesList: View {
             }
         }
     }
-
-    private var order: [AppRule] { model.rules.displayOrder(running: model.running) }
 
     /// The stored rule with `rule`'s id, so a row edits the rule itself, not its place in
     /// the display order.
@@ -87,6 +88,8 @@ struct RulesLegend: View {
 
 struct RuleRow: View {
     @Binding var rule: AppRule
+    /// Looked up in the background; nil until it arrives.
+    let details: RuleDetails?
     /// Marks the rule that's deciding right now, linking the list to the menu.
     let isInForeground: Bool
     let remove: () -> Void
@@ -94,9 +97,10 @@ struct RuleRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(nsImage: AppInfo.icon(for: rule.target))
+            Image(nsImage: details?.icon ?? AppInfo.genericIcon)
                 .resizable()
                 .frame(width: 36, height: 36)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(rule.name)
@@ -110,7 +114,7 @@ struct RuleRow: View {
                             .background(Theme.accent, in: .capsule)
                     }
                 }
-                if let kind = AppInfo.kindDescription(for: rule) {
+                if let kind = details?.kind {
                     Text(kind)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -142,7 +146,7 @@ struct RuleRow: View {
         }
         .onHover { isHovered = $0 }
         .contextMenu {
-            let location = AppInfo.location(of: rule)
+            let location = details?.location
             Button("Show in Finder") {
                 if let location { NSWorkspace.shared.activateFileViewerSelecting([location]) }
             }
@@ -160,6 +164,8 @@ struct AddAppSheet: View {
     let model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var kind: AppTarget.Kind = .macApp
+    /// Why the last chosen file couldn't be added. The sheet stays open to show it.
+    @State private var problem: AddRuleError?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -184,6 +190,12 @@ struct AddAppSheet: View {
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Theme.cardFill, in: .rect(cornerRadius: Theme.cardRadius))
+
+                if let problem {
+                    Label(problem.message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .font(.callout)
+                }
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "lightbulb")
@@ -212,6 +224,7 @@ struct AddAppSheet: View {
         }
         .frame(width: 500)
         .animation(.snappy(duration: 0.2), value: kind)
+        .onChange(of: kind) { problem = nil }
     }
 
     private var macGuide: some View {
@@ -256,8 +269,12 @@ struct AddAppSheet: View {
             panel.message = "Choose the game's .exe"
         }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        model.addRule(forFileAt: url)
-        dismiss()
+        do {
+            try model.addRule(forFileAt: url)
+            dismiss()
+        } catch {
+            problem = error
+        }
     }
 }
 

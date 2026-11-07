@@ -2,8 +2,8 @@ import GuardPolicy
 import HelperInterface
 import Testing
 
-private let suppress = Decision(isSuppressed: true, reason: .game(appName: "GeForce NOW"))
-private let allow = Decision(isSuppressed: false, reason: .noTrigger)
+private let suppress = Decision(reason: .game(appName: "GeForce NOW"))
+private let allow = Decision(reason: .noTrigger)
 
 @Suite struct StatusTests {
     @Test func suppressedOnlyWhenHelperConfirmsDown() {
@@ -61,6 +61,46 @@ private let allow = Decision(isSuppressed: false, reason: .noTrigger)
             #expect(Status(decision: suppress, helper: state).tone == .problem)
         }
         #expect(Status(decision: suppress, helper: .connecting).tone == .pending)
+    }
+
+    @Test func everyBranchHasItsCopy() {
+        func connected(
+            _ isSuppressing: Bool, up: Bool?, count: Int = 0, failure: InterfaceFailure.Operation? = nil
+        ) -> HelperState {
+            .connected(
+                InterfaceObservation(
+                    isSuppressing: isSuppressing, isInterfaceUp: up, reactivationCount: count,
+                    failure: failure.map { InterfaceFailure(operation: $0, code: 1) }))
+        }
+        let cases: [(Decision, HelperState, Status.Tone, String, String)] = [
+            (suppress, .notInstalled, .problem, "Helper Required", "Needed to control AWDL"),
+            (suppress, .installFailed("Denied"), .problem, "Couldn't Install Helper", "Denied"),
+            (suppress, .needsApproval, .problem, "Approval Required", "Allow in the Background"),
+            (suppress, .connecting, .pending, "Connecting…", "GeForce NOW in foreground"),
+            (suppress, .notResponding, .problem, "Helper Not Responding", "Repair to restart it"),
+            (suppress, connected(false, up: true), .pending, "Turning Off…", "GeForce NOW in foreground"),
+            (suppress, connected(true, up: false), .suppressed, "AWDL Off", "GeForce NOW in foreground"),
+            (suppress, connected(true, up: false, count: 1), .suppressed, "AWDL Off", "Re-enabled by macOS once"),
+            (suppress, connected(true, up: true), .problem, "AWDL Still On", "macOS kept it on"),
+            (suppress, connected(true, up: nil), .problem, "Status Unavailable", "Couldn't check AWDL"),
+            (
+                suppress, connected(true, up: false, failure: .bringDown), .problem, "Couldn't Turn Off",
+                "Operation not permitted while turning AWDL off (error 1)"
+            ),
+            (allow, connected(true, up: false), .pending, "Turning On…", "No game in foreground"),
+            (
+                allow, connected(false, up: false, failure: .bringUp), .problem, "Couldn't Turn On",
+                "Operation not permitted while turning AWDL on (error 1)"
+            ),
+            (allow, connected(false, up: false), .allowed, "AWDL Off", "Turned off by macOS"),
+            (allow, connected(false, up: true), .allowed, "AWDL On", "No game in foreground"),
+        ]
+        for (decision, helper, tone, title, detail) in cases {
+            let status = Status(decision: decision, helper: helper)
+            #expect(status.tone == tone, "\(helper)")
+            #expect(status.title == title, "\(helper)")
+            #expect(status.detail == detail, "\(helper)")
+        }
     }
 
     @Test func repairingIsPending() {

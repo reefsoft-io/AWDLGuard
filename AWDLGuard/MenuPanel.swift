@@ -1,5 +1,7 @@
 import AppKit
 import GuardPolicy
+import HelperInterface
+import ServiceManagement
 import SwiftUI
 
 /// The menu bar window: the current state and its controls, the app settings, and the
@@ -33,15 +35,7 @@ struct MenuPanel: View {
             }
 
             // A setting, so it's a row with its state always visible, like the app above.
-            Toggle(isOn: $model.opensAtLogin) {
-                Text("Open at Login")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Theme.cardFill, in: .rect(cornerRadius: Theme.cardRadius))
+            LoginItemRow(state: model.loginItem, setOpensAtLogin: model.setOpensAtLogin)
 
             Divider().padding(.horizontal, -4)
 
@@ -76,12 +70,71 @@ struct MenuPanel: View {
     }
 }
 
+/// Open at Login, with the state the system reports. When it's on but turned off in
+/// System Settings, the row says where to allow it and offers the way there.
+struct LoginItemRow: View {
+    let state: LoginItemState
+    let setOpensAtLogin: @MainActor @Sendable (Bool) -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Toggle(isOn: Binding(get: { state != .off }, set: setOpensAtLogin)) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Open at Login")
+                    if state == .needsApproval {
+                        Text("Allow under Open at Login")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            if state == .needsApproval {
+                Button {
+                    SMAppService.openSystemSettingsLoginItems()
+                } label: {
+                    Text("Open Settings…").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(AccentButtonStyle(isCompact: true))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Theme.cardFill, in: .rect(cornerRadius: Theme.cardRadius))
+    }
+}
+
+/// A plain button that shows a light fill in `shape` while the pointer is over it.
+struct HoverButtonStyle<S: Shape>: ButtonStyle {
+    let shape: S
+
+    func makeBody(configuration: Configuration) -> some View {
+        Highlight(label: configuration.label, isPressed: configuration.isPressed, shape: shape)
+    }
+
+    private struct Highlight: View {
+        let label: Configuration.Label
+        let isPressed: Bool
+        let shape: S
+        @State private var isHovered = false
+
+        var body: some View {
+            label
+                .opacity(isPressed ? 0.6 : 1)
+                .background(isHovered ? Theme.cardFill : .clear, in: shape)
+                .contentShape(shape)
+                .onHover { isHovered = $0 }
+        }
+    }
+}
+
 /// A small round footer action, labelled by its tooltip.
 struct IconButton: View {
     let title: String
     let systemImage: String
     let action: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
@@ -89,11 +142,8 @@ struct IconButton: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
                 .frame(width: 30, height: 30)
-                .background(isHovered ? Theme.cardFill : .clear, in: .circle)
-                .contentShape(.circle)
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
+        .buttonStyle(HoverButtonStyle(shape: Circle()))
         .help(title)
         .accessibilityLabel(title)
     }
@@ -169,6 +219,8 @@ struct StatusCard: View {
                 // because the slash sticks out, so box-centring dropped the antenna 2.5 pt.
                 .alignmentGuide(VerticalAlignment.center) { $0[.firstTextBaseline] - Self.capHeight / 2 }
                 .frame(width: Self.iconSize, height: Self.iconSize)
+                // The title and detail say the same, and VoiceOver would read the symbol's name.
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(status.title)
                     .font(.system(size: 15, weight: .semibold))
@@ -207,9 +259,10 @@ struct ForegroundRow: View {
         let rule = model.rules.rule(for: app)
         let canHaveRule = AppTarget(app) != nil
         HStack(spacing: 10) {
-            Image(nsImage: foreground.running.icon ?? NSWorkspace.shared.icon(for: .application))
+            Image(nsImage: foreground.running.icon ?? AppInfo.genericIcon)
                 .resizable()
                 .frame(width: 32, height: 32)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(rule?.name ?? app.name)
                     .font(.body.weight(.medium))
@@ -299,11 +352,11 @@ extension Mode {
     }
 }
 
+/// A full-width footer action with an icon and a title.
 struct MenuRow: View {
     let title: String
     let systemImage: String
     let action: () -> Void
-    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
@@ -311,15 +364,73 @@ struct MenuRow: View {
                 Image(systemName: systemImage)
                     .frame(width: 20)
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                 Text(title)
                 Spacer()
             }
             .padding(.horizontal, 8)
             .frame(height: 30)
-            .background(isHovered ? Theme.cardFill : .clear, in: .capsule)
-            .contentShape(.capsule)
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
+        .buttonStyle(HoverButtonStyle(shape: Capsule()))
     }
 }
+
+#Preview("Status") {
+    ScrollView {
+        VStack(spacing: 10) {
+            ForEach(Array(previewStatuses.enumerated()), id: \.offset) { _, status in
+                StatusCard(
+                    status: status,
+                    action: status.remedy.map { _ in StatusCard.Action(title: "Fix…") {} })
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+    .frame(height: 700)
+}
+
+/// Every state the status card can show, built from the real decision and helper values.
+private let previewStatuses: [Status] = {
+    let suppress = Decision(reason: .game(appName: "GeForce NOW"))
+    let allow = Decision(reason: .noTrigger)
+    func connected(_ observation: InterfaceObservation) -> HelperState { .connected(observation) }
+    let states: [(Decision, HelperState)] = [
+        (suppress, connected(InterfaceObservation(isSuppressing: false, isInterfaceUp: true))),
+        (suppress, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: false))),
+        (
+            suppress,
+            connected(
+                InterfaceObservation(
+                    isSuppressing: true, isInterfaceUp: true, failure: InterfaceFailure(operation: .bringDown, code: EPERM)))
+        ),
+        (suppress, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: nil))),
+        (allow, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: false))),
+        (
+            allow,
+            connected(
+                InterfaceObservation(
+                    isSuppressing: false, isInterfaceUp: false, failure: InterfaceFailure(operation: .bringUp, code: EPERM)))
+        ),
+        (allow, connected(InterfaceObservation(isSuppressing: false, isInterfaceUp: false))),
+        (suppress, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: false, reactivationCount: 4))),
+        (suppress, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: true))),
+        (
+            suppress,
+            connected(
+                InterfaceObservation(
+                    isSuppressing: false, isInterfaceUp: true,
+                    failure: InterfaceFailure(operation: .recordState, code: EROFS)))
+        ),
+        (suppress, connected(InterfaceObservation(isSuppressing: true, isInterfaceUp: false, isWatching: false))),
+        (allow, connected(InterfaceObservation(isSuppressing: true, isHeldForOthers: true, isInterfaceUp: false))),
+        (allow, connected(InterfaceObservation(isSuppressing: false, isInterfaceUp: true))),
+        (suppress, .connecting),
+        (suppress, .repairing),
+        (suppress, .notInstalled),
+        (suppress, .installFailed("The operation couldn't be completed.")),
+        (suppress, .needsApproval),
+        (suppress, .notResponding),
+    ]
+    return states.map { Status(decision: $0.0, helper: $0.1) }
+}()

@@ -59,10 +59,35 @@ enum AppInfo {
         }
     }
 
+    /// The icon for an app that has no details yet, looked up once.
+    @MainActor static let genericIcon = NSWorkspace.shared.icon(for: .application)
+
     /// The app's own name, without ".app" even when Finder shows extensions.
     static func displayName(ofAppAt url: URL) -> String {
         let info = Bundle(url: url)?.localizedInfoDictionary ?? Bundle(url: url)?.infoDictionary
         return info?["CFBundleDisplayName"] as? String ?? info?["CFBundleName"] as? String
             ?? url.deletingPathExtension().lastPathComponent
+    }
+}
+
+/// What the system knows about a rule's app, looked up once for its row: these are
+/// LaunchServices, Info.plist and disk reads.
+///
+/// `@unchecked Sendable` because NSImage isn't marked Sendable; these images are made once
+/// and only read after.
+struct RuleDetails: @unchecked Sendable {
+    let target: AppTarget
+    /// The rule's chosen file these details were built from, so a change is noticed.
+    let fileURL: URL?
+    let icon: NSImage
+    let kind: String?
+    let location: URL?
+
+    init(rule: AppRule) {
+        target = rule.target
+        fileURL = rule.fileURL
+        icon = AppInfo.icon(for: rule.target)
+        kind = AppInfo.kindDescription(for: rule)
+        location = AppInfo.location(of: rule)
     }
 }

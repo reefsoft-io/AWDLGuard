@@ -15,24 +15,24 @@ private let stormRule = AppRule(
 @Suite struct DecisionTests {
     @Test func manualModesIgnoreAppAndNetwork() {
         #expect(Decision(mode: .allow, app: geForceNow, rules: [], isOnWiFi: true)
-            == Decision(isSuppressed: false, reason: .allowedByMode))
+            == Decision(reason: .allowedByMode))
         #expect(Decision(mode: .suppress, app: safari, rules: [], isOnWiFi: false)
-            == Decision(isSuppressed: true, reason: .suppressedByMode))
+            == Decision(reason: .suppressedByMode))
     }
 
     @Test func detectedGameSuppressesOnWiFi() {
         #expect(Decision(mode: .automatic, app: geForceNow, rules: [], isOnWiFi: true)
-            == Decision(isSuppressed: true, reason: .game(appName: "GeForce NOW")))
+            == Decision(reason: .game(appName: "GeForce NOW")))
     }
 
     @Test func triggerOffWiFiIsAllowedWithReason() {
         #expect(Decision(mode: .automatic, app: geForceNow, rules: [], isOnWiFi: false)
-            == Decision(isSuppressed: false, reason: .notOnWiFi))
+            == Decision(reason: .notOnWiFi))
     }
 
     @Test func windowsExecutableMatchesRuleWithoutBundle() {
         #expect(Decision(mode: .automatic, app: againstTheStorm, rules: [stormRule], isOnWiFi: true)
-            == Decision(isSuppressed: true, reason: .rule(appName: "Against the Storm")))
+            == Decision(reason: .rule(appName: "Against the Storm")))
     }
 
     @Test func windowsExecutableMatchIgnoresCase() {
@@ -43,7 +43,7 @@ private let stormRule = AppRule(
 
     @Test func unmatchedWindowsAppIsNotATrigger() {
         #expect(Decision(mode: .automatic, app: againstTheStorm, rules: [], isOnWiFi: true)
-            == Decision(isSuppressed: false, reason: .noTrigger))
+            == Decision(reason: .noTrigger))
     }
 
     @Test func ruleTurnedOffExcludesDetectedGame() {
@@ -51,7 +51,7 @@ private let stormRule = AppRule(
             target: .macApp(bundleIdentifier: "com.nvidia.gfnpc.mall"), name: "GeForce NOW",
             isSuppressing: false)
         #expect(Decision(mode: .automatic, app: geForceNow, rules: [rule], isOnWiFi: true)
-            == Decision(isSuppressed: false, reason: .excludedByRule(appName: "GeForce NOW")))
+            == Decision(reason: .excludedByRule(appName: "GeForce NOW")))
     }
 
     @Test func windowsRuleDoesNotMatchMacAppWithSameExecutable() {
@@ -61,9 +61,37 @@ private let stormRule = AppRule(
         #expect(!Decision(mode: .automatic, app: app, rules: [rule], isOnWiFi: true).isSuppressed)
     }
 
+    @Test func ruleTurnedOffStaysExcludedOffWiFi() {
+        let rule = AppRule(
+            target: .macApp(bundleIdentifier: "com.nvidia.gfnpc.mall"), name: "GeForce NOW",
+            isSuppressing: false)
+        #expect(Decision(mode: .automatic, app: geForceNow, rules: [rule], isOnWiFi: false)
+            == Decision(reason: .excludedByRule(appName: "GeForce NOW")))
+    }
+
+    @Test func ruleTurnsOnNonGameApp() {
+        let rule = AppRule(target: .macApp(bundleIdentifier: "com.apple.Safari"), name: "Safari")
+        #expect(Decision(mode: .automatic, app: safari, rules: [rule], isOnWiFi: true)
+            == Decision(reason: .rule(appName: "Safari")))
+    }
+
+    @Test func windowsRuleIgnoresBundledAppRunningAnExe() {
+        let bundled = ForegroundApp(
+            name: "Against the Storm", bundleIdentifier: "com.example.wrapper",
+            executableName: "Against the Storm.exe", isGame: false)
+        #expect(!Decision(mode: .automatic, app: bundled, rules: [stormRule], isOnWiFi: true).isSuppressed)
+    }
+
+    @Test func suppressionFollowsReason() {
+        let suppressing: [Decision.Reason] = [.suppressedByMode, .rule(appName: "A"), .game(appName: "A")]
+        let allowing: [Decision.Reason] = [.allowedByMode, .excludedByRule(appName: "A"), .notOnWiFi, .noTrigger]
+        #expect(suppressing.allSatisfy { Decision(reason: $0).isSuppressed })
+        #expect(allowing.allSatisfy { !Decision(reason: $0).isSuppressed })
+    }
+
     @Test func noForegroundAppIsNotATrigger() {
         #expect(Decision(mode: .automatic, app: nil, rules: [], isOnWiFi: true)
-            == Decision(isSuppressed: false, reason: .noTrigger))
+            == Decision(reason: .noTrigger))
     }
 }
 
@@ -105,6 +133,19 @@ private let stormRule = AppRule(
         var rules: [AppRule] = []
         rules.add(againstTheStorm)
         #expect(rules == [AppRule(target: .windowsApp(executableName: "Against the Storm.exe"), name: "Against the Storm")])
+    }
+
+    @Test func equalNamesKeepAStableOrder() {
+        let first = AppRule(target: .macApp(bundleIdentifier: "com.example.a"), name: "Same")
+        let second = AppRule(target: .macApp(bundleIdentifier: "com.example.b"), name: "Same")
+        #expect([second, first].displayOrder(running: []) == [first, second])
+        #expect([first, second].displayOrder(running: []) == [first, second])
+    }
+
+    @Test func windowsAppNameDropsExeInAnyCase() {
+        #expect(AppTarget.windowsAppName("Game.EXE") == "Game")
+        #expect(AppTarget.windowsAppName(".exe") == ".exe")
+        #expect(AppTarget.windowsAppName("Game") == "Game")
     }
 
     @Test func addingExistingTargetReenablesInsteadOfDuplicating() {

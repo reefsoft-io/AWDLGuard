@@ -67,8 +67,9 @@ public struct InterfaceObservation: Codable, Sendable, Equatable {
     }
 }
 
-/// A failed system call on awdl0, with its `errno`.
-public struct InterfaceFailure: Error, Codable, Sendable, Equatable {
+/// A failed system call on awdl0, with its `errno`. Its description is for logs; the app
+/// words it for the user.
+public struct InterfaceFailure: Error, Codable, Sendable, Equatable, CustomStringConvertible {
     public enum Operation: String, Codable, Sendable {
         case readFlags
         case bringDown
@@ -87,15 +88,8 @@ public struct InterfaceFailure: Error, Codable, Sendable, Equatable {
         self.code = code
     }
 
+    /// For example "bringDown failed: Operation not permitted (errno 1)".
     public var description: String {
-        let action =
-            switch operation {
-            case .readFlags: "checking AWDL"
-            case .bringDown: "turning AWDL off"
-            case .bringUp: "turning AWDL on"
-            case .watchChanges: "watching AWDL"
-            case .recordState: "saving AWDL state"
-            }
-        return "\(String(cString: strerror(code))) while \(action) (error \(code))"
+        "\(operation.rawValue) failed: \(String(cString: strerror(code))) (errno \(code))"
     }
 }

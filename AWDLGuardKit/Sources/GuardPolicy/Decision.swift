@@ -22,50 +22,44 @@ public struct Decision: Equatable, Sendable {
         case noTrigger
     }
 
-    public var isSuppressed: Bool
-    public var reason: Reason
+    public let reason: Reason
 
-    public init(isSuppressed: Bool, reason: Reason) {
-        self.isSuppressed = isSuppressed
+    public init(reason: Reason) {
         self.reason = reason
+    }
+
+    /// Derived from the reason, so a decision can't contradict itself.
+    public var isSuppressed: Bool {
+        switch reason {
+        case .suppressedByMode, .rule, .game: true
+        case .allowedByMode, .excludedByRule, .notOnWiFi, .noTrigger: false
+        }
     }
 
     /// Manual modes win. In automatic mode the app's rule wins over game detection, and
     /// suppression also needs Wi-Fi, since AWDL only competes with Wi-Fi traffic.
     public init(mode: Mode, app: ForegroundApp?, rules: [AppRule], isOnWiFi: Bool) {
-        switch mode {
-        case .allow:
-            self.init(isSuppressed: false, reason: .allowedByMode)
-            return
-        case .suppress:
-            self.init(isSuppressed: true, reason: .suppressedByMode)
-            return
-        case .automatic:
-            break
-        }
+        self.init(reason: Self.reason(mode: mode, app: app, rules: rules, isOnWiFi: isOnWiFi))
+    }
 
-        guard let app else {
-            self.init(isSuppressed: false, reason: .noTrigger)
-            return
+    private static func reason(mode: Mode, app: ForegroundApp?, rules: [AppRule], isOnWiFi: Bool) -> Reason {
+        switch mode {
+        case .allow: return .allowedByMode
+        case .suppress: return .suppressedByMode
+        case .automatic: break
         }
+        guard let app else { return .noTrigger }
 
         let trigger: Reason
         if let rule = rules.rule(for: app) {
-            guard rule.isSuppressing else {
-                self.init(isSuppressed: false, reason: .excludedByRule(appName: rule.name))
-                return
-            }
+            guard rule.isSuppressing else { return .excludedByRule(appName: rule.name) }
             trigger = .rule(appName: rule.name)
         } else if app.isGame {
             trigger = .game(appName: app.name)
         } else {
-            self.init(isSuppressed: false, reason: .noTrigger)
-            return
+            return .noTrigger
         }
-
-        self = isOnWiFi
-            ? Decision(isSuppressed: true, reason: trigger)
-            : Decision(isSuppressed: false, reason: .notOnWiFi)
+        return isOnWiFi ? trigger : .notOnWiFi
     }
 
     /// One line explaining the decision.

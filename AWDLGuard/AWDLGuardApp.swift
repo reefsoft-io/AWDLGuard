@@ -45,6 +45,7 @@ struct AWDLGuardApp: App {
         } label: {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .symbolVariant(model.status.tone == .suppressed ? .slash : .none)
+                .accessibilityLabel("AWDL Guard, \(model.status.title)")
         }
         .menuBarExtraStyle(.window)
     }
@@ -63,18 +64,14 @@ private struct MenuContent: View {
             openAbout: { show(AppWindow.about) },
             hideMenuBarItem: confirmHide
         )
-        // The helper may have been approved, turned off or removed in System Settings.
-        .onAppear { model.helper.refresh() }
+        // The helper or the login item may have been changed in System Settings.
+        .onAppear { model.refreshSystemState() }
     }
 
-    /// Closes the menu and brings the window forward. A menu bar app isn't active while its
-    /// menu is open, so the window would otherwise open behind the app in the foreground.
+    /// Closes the menu, then brings the window forward.
     private func show(_ id: String) {
-        let wasOpen = AppWindow.find(id)?.isVisible == true
         dismiss()
-        openWindow(id: id)
-        NSApp.activate()
-        if !wasOpen { AppWindow.centreOnPointerScreen(id) }
+        AppWindow.show(id, using: openWindow)
     }
 
     private func confirmHide() {
@@ -89,16 +86,18 @@ private struct MenuContent: View {
             alert.addButton(withTitle: "Hide")
             alert.addButton(withTitle: "Cancel")
             if alert.runModal() == .alertFirstButtonReturn { model.isMenuBarItemHidden = true }
+            // Give focus back to the app that had it, as at launch, unless a window is open.
+            if !AppWindow.isOpen(AppWindow.rules), !AppWindow.isOpen(AppWindow.about) { NSApp.deactivate() }
         }
     }
 }
 
-/// About AWDL Guard in the app menu, shown while the App Rules window is open.
+/// About AWDL Guard in the app menu, shown while the AWDL Guard window is open.
 private struct AboutCommand: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("About AWDL Guard") { openWindow(id: AppWindow.about) }
+        Button("About AWDL Guard") { AppWindow.show(AppWindow.about, using: openWindow) }
     }
 }
 
@@ -108,17 +107,30 @@ enum AppWindow {
     static let rules = "rules"
     static let about = "about"
 
-    /// SwiftUI names a scene's window after its id, with a suffix.
-    static func find(_ id: String) -> NSWindow? {
-        NSApp.windows.first { $0.identifier?.rawValue.hasPrefix(id) == true }
+    /// Opens a window, or brings it forward, and makes AWDL Guard active, since a menu bar
+    /// app isn't active while its menu is open. A window that wasn't open is centred on the
+    /// screen with the pointer, rather than wherever it was last.
+    static func show(_ id: String, using openWindow: OpenWindowAction) {
+        let wasOpen = isOpen(id)
+        openWindow(id: id)
+        NSApp.activate()
+        if !wasOpen { centreOnPointerScreen(id) }
     }
 
-    /// Centres a window that's just been opened on the screen with the pointer, the one
-    /// whose menu bar was just clicked, rather than wherever it was last.
-    static func centreOnPointerScreen(_ id: String) {
+    /// Whether the window is on screen or in the Dock, minimised.
+    static func isOpen(_ id: String) -> Bool {
+        windows(id).contains { $0.isVisible || $0.isMiniaturized }
+    }
+
+    /// SwiftUI names a scene's window after its id, with a suffix, and may keep closed ones.
+    private static func windows(_ id: String) -> [NSWindow] {
+        NSApp.windows.filter { $0.identifier?.rawValue.hasPrefix(id) == true }
+    }
+
+    private static func centreOnPointerScreen(_ id: String) {
         // SwiftUI creates the window on the next pass of the run loop.
         DispatchQueue.main.async {
-            guard let window = find(id),
+            guard let window = windows(id).first(where: \.isVisible),
                 let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) })
             else { return }
             let area = screen.visibleFrame
@@ -138,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isLaunching = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if !isLoginLaunch { model.isMenuBarItemHidden = false }
         returnFocus()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.isLaunching = false }
     }
@@ -151,9 +164,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         model.isMenuBarItemHidden = false
         // With the window open the app is in the Dock, and clicking it there behaves as usual.
-        if let window = AppWindow.find(AppWindow.rules), window.isVisible || window.isMiniaturized { return true }
+        if AppWindow.isOpen(AppWindow.rules) { return true }
         DispatchQueue.main.async { NSApp.deactivate() }
         return false
+    }
+
+    /// A hidden menu bar item stays hidden only for a launch at login. Opened any other way,
+    /// AWDL Guard shows it again, as the Hide alert promises. The launch's open-application
+    /// event says which; it's available from `applicationDidFinishLaunching`, not before.
+    private var isLoginLaunch: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent, event.eventID == kAEOpenApplication
+        else { return false }
+        return event.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
     }
 
     /// Finder makes an app it opens the active one. AWDL Guard starts as just its menu bar

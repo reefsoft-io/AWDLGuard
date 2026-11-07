@@ -68,6 +68,8 @@ final class HelperConnection {
         default:
             disconnect()
             stopWatchingApproval()
+            // Keep the reason a failed install gave until the next attempt.
+            if case .installFailed = state { return }
             state = .notInstalled
         }
     }
@@ -96,6 +98,13 @@ final class HelperConnection {
             try service.register()
         } catch {
             log.error("Helper registration failed: \(error, privacy: .public)")
+            // An error can still leave the helper registered, enabled or waiting for
+            // approval; only a helper that isn't registered at all is a failed install.
+            if service.status == .notRegistered || service.status == .notFound {
+                disconnect()
+                state = .installFailed(error.localizedDescription)
+                return
+            }
         }
         if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
         refresh()

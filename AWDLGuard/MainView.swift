@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The main window: App Rules under a standard toolbar with the title and Add App.
+/// The AWDL Guard window: the App Rules list under a standard toolbar with the title and
+/// Add App.
 /// Everything about the current state lives in the menu bar panel.
 struct MainView: View {
     @Bindable var model: AppModel
@@ -14,7 +15,6 @@ struct MainView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add App", systemImage: "plus") { isAdding = true }
-                        .help("Add App")
                 }
             }
             .sheet(isPresented: $isAdding) {
@@ -24,7 +24,13 @@ struct MainView: View {
             .frame(minWidth: 560, minHeight: 400)
             // AWDL Guard is a menu bar app; it shows in the Dock and app switcher only while
             // this window is open.
-            .onAppear { NSApp.setActivationPolicy(.regular) }
-            .onDisappear { NSApp.setActivationPolicy(.accessory) }
+            .onAppear {
+                NSApp.setActivationPolicy(.regular)
+                model.isRulesWindowOpen = true
+            }
+            .onDisappear {
+                NSApp.setActivationPolicy(.accessory)
+                model.isRulesWindowOpen = false
+            }
     }
 }
