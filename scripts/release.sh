@@ -56,6 +56,11 @@ build_number=$(git rev-list --count HEAD)
 
 rm -rf $work
 mkdir -p $work
+# Building registers every copy of the app with Launch Services; forget them on exit, even
+# after a failure, so only the installed app stays registered.
+readonly lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+forget_builds() { find $work -name '*.app' -prune -exec $lsregister -u {} \; 2>/dev/null || true }
+trap forget_builds EXIT
 
 step "Testing"
 xcodebuild -project AWDLGuard.xcodeproj -scheme AWDLGuard -destination "platform=macOS,arch=$(uname -m)" \
