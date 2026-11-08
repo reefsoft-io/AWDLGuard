@@ -14,6 +14,8 @@ import os
 /// reports changes to awdl0 as they happen, so nothing is resent on a timer.
 @MainActor @Observable
 final class HelperConnection {
+    /// The setup's state, copied only when it changes, so the menu redraws on a new state
+    /// and not on every request counted in the phase.
     private(set) var state: HelperState = .connecting
 
     /// Read whenever a request is sent, so the helper always gets the current decision.
@@ -72,7 +74,7 @@ final class HelperConnection {
             let effects = setup.handle(event)
             let name = Self.name(setup.phase)
             if name != Self.name(before) { log.notice("Helper setup: \(name, privacy: .public)") }
-            if setup.state != state { state = setup.state }
+            if setup.phase.state != state { state = setup.phase.state }
             for effect in effects { perform(effect) }
         }
     }

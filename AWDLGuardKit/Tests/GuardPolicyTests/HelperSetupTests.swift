@@ -46,13 +46,13 @@ private enum Reachable {
         var setup = HelperSetup()
         #expect(setup.handle(.refreshed(.notRegistered)) == [.cancelTimer, .register])
         #expect(setup.phase == .registering(failures: 0))
-        #expect(setup.state == .connecting)
+        #expect(setup.phase.state == .connecting)
     }
 
     @Test func approvalWaitingAtLaunchDoesNotOpenSettings() {
         var setup = HelperSetup()
         #expect(setup.handle(.refreshed(.requiresApproval)) == [.startTimer(poll)])
-        #expect(setup.state == .needsApproval)
+        #expect(setup.phase.state == .needsApproval)
     }
 
     @Test func enabledHelperIsConnected() {
@@ -66,7 +66,7 @@ private enum Reachable {
     @Test func ownRegistrationNeedingApprovalOpensSettings() {
         var setup = setup(at: .registering)
         #expect(setup.handle(.registerFinished(.requiresApproval)) == [.openSettings, .startTimer(poll)])
-        #expect(setup.state == .needsApproval)
+        #expect(setup.phase.state == .needsApproval)
     }
 
     @Test func registrationThatWorkedConnects() {
@@ -92,7 +92,7 @@ private enum Reachable {
     @Test func attemptsRunOutIntoFailed() {
         let setup = setup(at: .failed)
         #expect(setup.phase == .failed)
-        #expect(setup.state == .failed)
+        #expect(setup.phase.state == .failed)
     }
 
     // MARK: Approval
@@ -119,7 +119,7 @@ private enum Reachable {
         var setup = setup(at: .connecting)
         #expect(setup.handle(.replied(session: 1, down)) == [.cancelTimer])
         #expect(setup.phase == .connected(session: 1, observation: down, unanswered: 0))
-        #expect(setup.state == .connected(down))
+        #expect(setup.phase.state == .connected(down))
     }
 
     @Test func pushBeforeTheReplyCountsAsAnswered() {
@@ -176,7 +176,7 @@ private enum Reachable {
     @Test func approvalTurnedOffWhileConnected() {
         var setup = setup(at: .connected)
         #expect(setup.handle(.refreshed(.requiresApproval)) == [.closeSession, .startTimer(poll)])
-        #expect(setup.state == .needsApproval)
+        #expect(setup.phase.state == .needsApproval)
         #expect(setup.handle(.refreshed(.enabled)) == [.openSession(2), .sendRequest(2), .startTimer(reply)])
     }
 
@@ -211,7 +211,7 @@ private enum Reachable {
         var setup = setup(at: .failed)
         #expect(setup.handle(.repairRequested) == [.closeSession, .startTimer(HelperSetup.unregisterTimeout), .unregister])
         #expect(setup.phase == .unregistering(failures: 0))
-        #expect(setup.state == .connecting)
+        #expect(setup.phase.state == .connecting)
     }
 
     @Test func repairRaceIsAbsorbed() {
@@ -224,7 +224,7 @@ private enum Reachable {
         #expect(setup.handle(.timerFired(.notRegistered)) == [.cancelTimer, .register])
         #expect(setup.handle(.registerFinished(.enabled)) == [.openSession(2), .sendRequest(2), .startTimer(reply)])
         #expect(setup.handle(.replied(session: 2, down)) == [.cancelTimer])
-        #expect(setup.state == .connected(down))
+        #expect(setup.phase.state == .connected(down))
     }
 
     @Test func repairDuringAnOperationIsIgnored() {
@@ -260,14 +260,14 @@ private enum Reachable {
             session += 1
         }
         #expect(setup.handle(.sessionEnded(session: session)) == [.closeSession, .cancelTimer])
-        #expect(setup.state == .failed)
+        #expect(setup.phase.state == .failed)
 
         _ = setup.handle(.repairRequested)
         _ = setup.handle(.unregisterFinished)
         _ = setup.handle(.timerFired(.notRegistered))
         _ = setup.handle(.registerFinished(.enabled))
         _ = setup.handle(.replied(session: session + 1, up))
-        #expect(setup.state == .connected(up))
+        #expect(setup.phase.state == .connected(up))
     }
 
     // MARK: Ignored pairs
@@ -286,17 +286,17 @@ private enum Reachable {
         #expect(setup.phase == .connecting(session: 1, failures: HelperSetup.maxFailures - 1, unanswered: 1))
         // One more failure is the last.
         #expect(setup.handle(.timerFired(.enabled)) == [.closeSession, .cancelTimer])
-        #expect(setup.state == .failed)
+        #expect(setup.phase.state == .failed)
         // An answer clears it.
         _ = setup.handle(.refreshed(.enabled))
         _ = setup.handle(.replied(session: 2, up))
-        #expect(setup.state == .connected(up))
+        #expect(setup.phase.state == .connected(up))
     }
 
     @Test func failedThenApprovalTurnedOffWaitsForApproval() {
         var setup = setup(at: .failed)
         #expect(setup.handle(.refreshed(.requiresApproval)) == [.startTimer(poll)])
-        #expect(setup.state == .needsApproval)
+        #expect(setup.phase.state == .needsApproval)
     }
 
     @Test func failuresCarryThroughApproval() {

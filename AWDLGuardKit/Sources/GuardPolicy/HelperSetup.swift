@@ -108,9 +108,6 @@ public struct HelperSetup: Sendable {
 
     public init() {}
 
-    /// What the menu shows.
-    public var state: HelperState { phase.state }
-
     public mutating func handle(_ event: HelperEvent) -> [HelperEffect] {
         switch (phase, event) {
         case (.idle, .refreshed(let registration)):
