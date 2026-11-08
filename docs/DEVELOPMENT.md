@@ -30,8 +30,7 @@ it is set per configuration only.
 A record saved for another signer makes launchd refuse the helper ("Launch Constraint
 Violation"). The app recovers by itself: macOS then asks for approval again, and once
 approved, the helper still doesn't answer, so the app re-registers it, which saves the
-current signer. Installing 0.1.1 over a Debug build that had the release identity went
-exactly this way. If the helper still won't start, turn the app off and on under
+current signer. If the helper still won't start, turn the app off and on under
 Background App Activity. The last resort is `sfltool resetbtm`, which resets the
 background items of every app and needs a restart.
 macOS reads a Debug build's location to check its helper; if the log shows "Item real path
