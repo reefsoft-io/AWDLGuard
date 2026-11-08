@@ -25,14 +25,6 @@
       "target-membership": [
         "AWDLGuard",
       ],
-      "membership-exceptions": [
-        {
-          "target": "AWDLGuard",
-          "exclusions": [
-            "Info.plist",
-          ],
-        },
-      ],
     }, {
       "kind": "folder",
       "path": "AWDLGuardHelper",
@@ -96,7 +88,6 @@
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AWDL Guard",
         "ENABLE_APP_SANDBOX": "NO",
         "GENERATE_INFOPLIST_FILE": "YES",
-        "INFOPLIST_FILE": "AWDLGuard/Info.plist",
         "INFOPLIST_KEY_CFBundleDisplayName": "AWDL Guard",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
         "INFOPLIST_KEY_LSUIElement": "YES",
