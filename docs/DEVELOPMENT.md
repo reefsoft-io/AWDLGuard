@@ -15,6 +15,10 @@ versions can't open.
 
 Tests: `xcodebuild test -scheme AWDLGuard`, or `swift test` in `AWDLGuardKit/`.
 
+Logs: the app and the helper log under their own bundle identifiers, so
+`log stream --predicate 'subsystem BEGINSWITH "io.reefsoft.AWDLGuard"'` shows both, for
+release and Debug builds.
+
 Debug builds are a separate app, `io.reefsoft.AWDLGuard.debug`, shown as "AWDL Guard Debug",
 with their own helper, settings and Background App Activity entry. Release and Debug builds
 are signed by different certificates, and macOS saves the signer of a helper's first

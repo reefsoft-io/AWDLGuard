@@ -28,7 +28,7 @@ final class AWDLInterface: @unchecked Sendable {
     private var routeSource: DispatchSourceRead?
     private var onChange: (InterfaceObservation) -> Void = { _ in }
     private var observation = InterfaceObservation(isSuppressing: false, isInterfaceUp: nil)
-    private let log = Logger(subsystem: "io.reefsoft.AWDLGuard.Helper", category: "interface")
+    private let log = Logger(category: "interface")
 
     /// Opens the sockets. Nothing happens to awdl0 until `start`.
     init(queue: DispatchQueue, markerPath: String) throws(InterfaceFailure) {

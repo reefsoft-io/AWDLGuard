@@ -1,5 +1,6 @@
 import AppKit
 import GuardPolicy
+import HelperInterface
 import Network
 import Observation
 import ServiceManagement
@@ -54,7 +55,7 @@ final class AppModel {
     }
 
     @ObservationIgnored private let pathMonitor = NWPathMonitor()
-    @ObservationIgnored private let log = Logger(subsystem: "io.reefsoft.AWDLGuard", category: "app")
+    @ObservationIgnored private let log = Logger(category: "app")
 
     private enum Keys {
         static let mode = "mode"
@@ -70,7 +71,7 @@ final class AppModel {
         rules = []
         isMenuBarItemHidden = defaults.bool(forKey: Keys.isMenuBarItemHidden)
         opensAtLogin = Self.readOpensAtLogin()
-        helper = HelperConnection(appIdentifier: Bundle.main.bundleIdentifier ?? "io.reefsoft.AWDLGuard")
+        helper = HelperConnection()
         helper.wantsSuppression = { [unowned self] in decision.isSuppressed }
 
         loadRules()

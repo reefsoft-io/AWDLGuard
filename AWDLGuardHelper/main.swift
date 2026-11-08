@@ -16,7 +16,7 @@ final class Helper: @unchecked Sendable {
     private var sessions: [Int: XPCSession] = [:]
     private var requests = SessionRequests()
     private var lastSessionNumber = 0
-    private let log = Logger(subsystem: "io.reefsoft.AWDLGuard.Helper", category: "helper")
+    private let log = Logger(category: "helper")
 
     /// How long a helper that launchd started may wait for its first session.
     private static let firstSessionTimeout: DispatchTimeInterval = .seconds(10)
@@ -108,7 +108,7 @@ final class Helper: @unchecked Sendable {
 }
 
 func runHelper() -> Never {
-    let log = Logger(subsystem: "io.reefsoft.AWDLGuard.Helper", category: "helper")
+    let log = Logger(category: "helper")
 
     guard let helperIdentifier = Bundle.main.bundleIdentifier,
         let appIdentifier = HelperIdentity.appIdentifier(helperIdentifier: helperIdentifier)

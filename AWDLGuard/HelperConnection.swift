@@ -35,9 +35,13 @@ final class HelperConnection {
     @ObservationIgnored private var timerNumber = 0
     /// The registration last written to the log; only for logging.
     @ObservationIgnored private var loggedRegistration: Registration?
-    @ObservationIgnored private let log = Logger(subsystem: "io.reefsoft.AWDLGuard", category: "helper")
+    @ObservationIgnored private let log = Logger(category: "helper")
 
-    init(appIdentifier: String) {
+    /// The helper belongs to the running app: a Debug build has its own.
+    init() {
+        guard let appIdentifier = Bundle.main.bundleIdentifier else {
+            preconditionFailure("AWDL Guard has no bundle identifier, so it can't find its helper")
+        }
         identifier = HelperIdentity.helperIdentifier(appIdentifier: appIdentifier)
         service = SMAppService.daemon(plistName: identifier + ".plist")
     }
