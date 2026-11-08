@@ -15,12 +15,26 @@ versions can't open.
 
 Tests: `xcodebuild test -scheme AWDLGuard`, or `swift test` in `AWDLGuardKit/`.
 
+Debug builds are a separate app, `io.reefsoft.AWDLGuard.debug`, shown as "AWDL Guard Debug",
+with their own helper, settings and Background App Activity entry. Release and Debug builds
+are signed by different certificates, and macOS saves the signer of a helper's first
+registration: sharing one identity made launchd refuse whichever build came second. The
+identity comes from `APP_BUNDLE_IDENTIFIER` in the project's build settings. In the JSON
+project format a `[config=…]` value is ignored when the same setting also has a plain one, so
+it is set per configuration only.
+
+If the helper still won't start, turn the app off and on under Background App Activity in
+System Settings, which makes macOS rebuild its record of the helper. The last resort is
+`sfltool resetbtm`, which resets the background items of every app and needs a restart.
+macOS reads a Debug build's location to check its helper; if the log shows "Item real path
+failed", run the build from `/Applications`.
+
 ## How it works
 
 | Part | Owns |
 |---|---|
 | `AWDLGuardKit/HelperInterface` | The XPC messages (`SuppressionRequest`, `InterfaceObservation`) and the helper's table of what each session asks for (`SessionRequests`). |
-| `AWDLGuardKit/GuardPolicy` | Rules and how they're stored, the `Decision` (suppress or not, and why) and the `Status` the menu shows, with its wording. |
+| `AWDLGuardKit/GuardPolicy` | Rules and how they're stored, the `Decision` (suppress or not, and why), the helper's setup (`HelperSetup`) and the `Status` the menu shows, with its wording. |
 | `AWDLGuardHelper` | The privileged launchd daemon. It sets `awdl0`'s `IFF_UP` flag and watches the routing socket. |
 | `AWDLGuard` | The menu bar app: its inputs (mode, rules, foreground app, Wi-Fi), the helper connection and the UI. |
 
@@ -56,7 +70,7 @@ launchd stops the helper with SIGTERM (unregistering, turning it off under Backg
 App Activity, shutdown), the helper restores `awdl0` and exits. It never runs unseen.
 Everything in the helper runs on one serial queue.
 
-The file `/var/run/io.reefsoft.AWDLGuard.Helper.suppressing` is the one record that the
+The file `/var/run/<helper identifier>.suppressing` is the one record that the
 helper owes `awdl0` a bring-up:
 - It is written before `awdl0` goes down and removed only once `awdl0` is back up, so a
   failed bring-up is retried on the next release, at exit and by the next helper.
@@ -73,23 +87,41 @@ the helper takes it down again, so there's a brief window each time. Each one is
 and shown in the menu. If the routing socket fails for good, the menu shows "Not Watching
 AWDL" with Repair, which restarts the helper and its socket.
 
-### Connection
+### Setup and connection
 
-The connection is driven by events, with no heartbeat:
-- XPC ends the app's session when the helper exits, crashes or is stopped. If the session
-  had answered, the app rereads the registration and opens a new session at once, which
-  launches the helper again, and sends its current decision.
-- A session that ends before ever answering shows "Helper Not Responding" and is retried
-  after 1 second, doubling up to 30.
+The app sets the helper up by itself. The only thing the user does is turn it on under
+Background App Activity, once. `HelperSetup` is a state machine with no side effects: it
+takes events (the registration macOS reports, a register or unregister finishing, replies,
+a session ending, a timer, Repair) and returns effects (register, unregister, open or close
+the session, send a request, start or cancel its one timer, open Settings, reread the
+registration).
+`HelperConnection` performs the effects and feeds the events back. Its tests cover every
+transition.
+
+- Not registered: the app registers the helper. `register()` can report an error and still
+  succeed, so the registration read afterwards decides.
+- Waiting for approval: the app opens Settings when its own first registration led there,
+  which is the first install. A retry or a registration already waiting at launch shows
+  Open Settings… instead. macOS posts nothing when the user approves, so the registration
+  is reread every 2 seconds.
+- Enabled: the app opens a session, which launches the helper, and sends its decision.
+- A helper that answered and then went away (exited, crashed, stopped) is reconnected at
+  once. A request unanswered for 10 seconds ends the session the same way. The timer uses
+  the suspending clock, so time asleep doesn't count.
+- A helper that never answers is re-registered: unregister, wait a second, register.
+  Registering straight after unregistering is refused while macOS is still removing the
+  old job ("Job is not allowed to bootstrap"). An unregister that doesn't finish within 10
+  seconds is treated as finished.
+- Each failure is retried after 1, 2, then 4 seconds. The count carries through approval
+  and clears only when the helper answers. After four failures in a row the menu shows
+  "Helper Not Working" with Repair, which re-registers and starts the count again. Opening
+  the menu then also tries once more, for example after the user turned the app off and on
+  under Background App Activity.
+- A helper that has answered is only reconnected, never re-registered. Each app judges
+  this by its own session, so with two users on the Mac one user's app can still
+  re-register the helper the other is using, when its own sessions never get an answer.
 - The helper pushes every change to `awdl0`, and the app sends a request whenever its
-  decision changes.
-- A request unanswered for 10 seconds shows "Helper Not Responding". The timer uses the
-  suspending clock, so time asleep doesn't count.
-- Replies and pushes from an ended session are ignored.
-
-`SMAppService` posts nothing when the helper is approved in System Settings, so while it
-waits for approval the app rereads the registration every 2 seconds, and whenever the menu
-opens.
+  decision changes. Events from an earlier session or a replaced timer are ignored.
 
 Turning AWDL Guard off under Background App Activity makes macOS stop the helper and also
 force quit the app (`forceQuitAppWithURL` in Background Task Management). The helper
@@ -100,8 +132,9 @@ minute later.
 ### Identity
 
 The helper's bundle identifier, launchd label and Mach service name are all the app's
-bundle identifier plus `.Helper` (`HelperIdentity`). The launchd plist in
-`AWDLGuardHelper/` must match.
+bundle identifier plus `.Helper` (`HelperIdentity`). The "Write Helper Plist" build phase
+writes the launchd plist from `AWDLGuardHelper/Helper.plist` with those values, so each
+build's plist matches its identity.
 
 ### App behaviour
 

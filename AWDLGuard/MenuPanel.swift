@@ -61,9 +61,8 @@ struct MenuPanel: View {
     private var helperAction: StatusCard.Action? {
         let helper = model.helper
         return switch model.status.remedy {
-        case .install: StatusCard.Action(title: "Install…") { helper.install() }
         case .approve: StatusCard.Action(title: "Open Settings…") { helper.openApproval() }
-        case .repair: StatusCard.Action(title: "Repair") { Task { await helper.repair() } }
+        case .repair: StatusCard.Action(title: "Repair") { helper.repair() }
         case nil: nil
         }
     }
@@ -408,11 +407,8 @@ private let previewStatuses: [Status] = {
         (allow, connected(InterfaceObservation(isSuppressing: true, isHeldForOthers: true, isInterfaceUp: false))),
         (allow, connected(InterfaceObservation(isSuppressing: false, isInterfaceUp: true))),
         (suppress, .connecting),
-        (suppress, .repairing),
-        (suppress, .notInstalled),
-        (suppress, .installFailed("The operation couldn't be completed.")),
         (suppress, .needsApproval),
-        (suppress, .notResponding),
+        (suppress, .failed),
     ]
     return states.map { Status(decision: $0.0, helper: $0.1) }
 }()

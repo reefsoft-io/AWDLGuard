@@ -1,19 +1,15 @@
 import Darwin
 import HelperInterface
 
-/// The app's view of the privileged helper.
+/// The app's view of the privileged helper, derived from its setup (`HelperSetup`).
 public enum HelperState: Equatable, Sendable {
-    case notInstalled
-    /// Registering the helper with launchd failed, with the system's message.
-    case installFailed(String)
-    /// Registered, but the user hasn't allowed it in System Settings yet.
-    case needsApproval
+    /// Setting up, retrying, or waiting for the helper's first answer.
     case connecting
+    /// Registered, but not turned on under Background App Activity yet.
+    case needsApproval
     case connected(InterfaceObservation)
-    /// Registered and enabled, but it stopped answering requests.
-    case notResponding
-    /// Unregistering and registering the helper again, to restart it.
-    case repairing
+    /// The app tried and gave up; Repair starts again.
+    case failed
 }
 
 /// What the menu shows as the current state: the decision checked against what the helper
@@ -32,7 +28,6 @@ public struct Status: Equatable, Sendable {
 
     /// What the user can do about a helper problem, offered with the status.
     public enum Remedy: Sendable {
-        case install
         case approve
         case repair
     }
@@ -51,18 +46,12 @@ public struct Status: Equatable, Sendable {
 
     public init(decision: Decision, helper: HelperState) {
         switch helper {
-        case .notInstalled:
-            self.init(tone: .problem, title: "Helper Required", detail: "Needed to control AWDL", remedy: .install)
-        case .installFailed(let message):
-            self.init(tone: .problem, title: "Couldn't Install Helper", detail: message, remedy: .install)
-        case .needsApproval:
-            self.init(tone: .problem, title: "Approval Required", detail: "Turn on background activity", remedy: .approve)
         case .connecting:
             self.init(tone: .pending, title: "Connecting…", detail: decision.explanation)
-        case .notResponding:
-            self.init(tone: .problem, title: "Helper Not Responding", detail: "Repair to restart it", remedy: .repair)
-        case .repairing:
-            self.init(tone: .pending, title: "Repairing…", detail: "Restarting helper")
+        case .needsApproval:
+            self.init(tone: .problem, title: "Approval Required", detail: "Turn on background activity", remedy: .approve)
+        case .failed:
+            self.init(tone: .problem, title: "Helper Not Working", detail: "Repair to set it up again", remedy: .repair)
         case .connected(let observation):
             self = decision.isSuppressed
                 ? Self.suppressing(observation, decision: decision)

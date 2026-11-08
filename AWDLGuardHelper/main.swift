@@ -127,8 +127,8 @@ func runHelper() -> Never {
         exit(EXIT_FAILURE)
     }
 
-    // launchd sends SIGTERM when the helper is unregistered, turned off under Allow in the
-    // Background in System Settings, or at shutdown; restore awdl0 before going.
+    // launchd sends SIGTERM when the helper is unregistered, turned off under Background App
+    // Activity in System Settings, or at shutdown; restore awdl0 before going.
     signal(SIGTERM, SIG_IGN)
     let termination = DispatchSource.makeSignalSource(signal: SIGTERM, queue: queue)
     termination.setEventHandler { helper.shutDown("Stopped by launchd") }

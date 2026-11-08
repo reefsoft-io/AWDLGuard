@@ -57,7 +57,7 @@ private let allow = Decision(reason: .noTrigger)
     }
 
     @Test func helperProblemsNeverShowSuppressed() {
-        for state in [HelperState.notInstalled, .needsApproval, .notResponding] {
+        for state in [HelperState.needsApproval, .failed] {
             #expect(Status(decision: suppress, helper: state).tone == .problem)
         }
         #expect(Status(decision: suppress, helper: .connecting).tone == .pending)
@@ -73,11 +73,9 @@ private let allow = Decision(reason: .noTrigger)
                     failure: failure.map { InterfaceFailure(operation: $0, code: 1) }))
         }
         let cases: [(Decision, HelperState, Status.Tone, String, String)] = [
-            (suppress, .notInstalled, .problem, "Helper Required", "Needed to control AWDL"),
-            (suppress, .installFailed("Denied"), .problem, "Couldn't Install Helper", "Denied"),
             (suppress, .needsApproval, .problem, "Approval Required", "Turn on background activity"),
             (suppress, .connecting, .pending, "Connecting…", "GeForce NOW in foreground"),
-            (suppress, .notResponding, .problem, "Helper Not Responding", "Repair to restart it"),
+            (suppress, .failed, .problem, "Helper Not Working", "Repair to set it up again"),
             (suppress, connected(false, up: true), .pending, "Turning Off…", "GeForce NOW in foreground"),
             (suppress, connected(true, up: false), .suppressed, "AWDL Off", "GeForce NOW in foreground"),
             (suppress, connected(true, up: false, count: 1), .suppressed, "AWDL Off", "Re-enabled by macOS once"),
@@ -101,13 +99,6 @@ private let allow = Decision(reason: .noTrigger)
             #expect(status.title == title, "\(helper)")
             #expect(status.detail == detail, "\(helper)")
         }
-    }
-
-    @Test func repairingIsPending() {
-        let status = Status(decision: suppress, helper: .repairing)
-        #expect(status.tone == .pending)
-        #expect(status.title == "Repairing…")
-        #expect(status.detail == "Restarting helper")
     }
 
     @Test func heldForAnotherSessionWhileAllowed() {
@@ -138,13 +129,11 @@ private let allow = Decision(reason: .noTrigger)
     }
 
     @Test func remediesMatchHelperProblems() {
-        #expect(Status(decision: suppress, helper: .notInstalled).remedy == .install)
         #expect(Status(decision: suppress, helper: .needsApproval).remedy == .approve)
         // Names the System Settings section, not just the Login Items page, which also lists
         // Open at Login.
         #expect(Status(decision: suppress, helper: .needsApproval).detail == "Turn on background activity")
-        #expect(Status(decision: suppress, helper: .notResponding).remedy == .repair)
-        #expect(Status(decision: suppress, helper: .repairing).remedy == nil)
+        #expect(Status(decision: suppress, helper: .failed).remedy == .repair)
         #expect(Status(decision: suppress, helper: .connecting).remedy == nil)
         let down = InterfaceObservation(isSuppressing: true, isInterfaceUp: false)
         #expect(Status(decision: suppress, helper: .connected(down)).remedy == nil)

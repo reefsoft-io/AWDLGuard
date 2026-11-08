@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The template for the helper's launchd plist. The app target's "Write Helper Plist" phase
+     adds Label, MachServices and AssociatedBundleIdentifiers from APP_BUNDLE_IDENTIFIER and
+     writes it as <APP_BUNDLE_IDENTIFIER>.Helper.plist, the name the app registers. The
+     label and the Mach service equal the helper's bundle identifier (HelperIdentity), so
+     Debug and release builds each get their own helper. -->
+<plist version="1.0">
+<dict>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/AWDLGuardHelper</string>
+</dict>
+</plist>
