@@ -27,9 +27,13 @@ identity comes from `APP_BUNDLE_IDENTIFIER` in the project's build settings. In 
 project format a `[config=…]` value is ignored when the same setting also has a plain one, so
 it is set per configuration only.
 
-If the helper still won't start, turn the app off and on under Background App Activity in
-System Settings, which makes macOS rebuild its record of the helper. The last resort is
-`sfltool resetbtm`, which resets the background items of every app and needs a restart.
+A record saved for another signer makes launchd refuse the helper ("Launch Constraint
+Violation"). The app recovers by itself: macOS then asks for approval again, and once
+approved, the helper still doesn't answer, so the app re-registers it, which saves the
+current signer. Installing 0.1.1 over a Debug build that had the release identity went
+exactly this way. If the helper still won't start, turn the app off and on under
+Background App Activity. The last resort is `sfltool resetbtm`, which resets the
+background items of every app and needs a restart.
 macOS reads a Debug build's location to check its helper; if the log shows "Item real path
 failed", run the build from `/Applications`.
 
